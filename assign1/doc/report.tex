@@ -1,0 +1,234 @@
+\documentclass[11pt]{report}
+\usepackage[utf8]{inputenc}
+\usepackage{algorithm}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage[noend]{algpseudocode}
+\usepackage{hyperref}
+
+\newcommand{\specialcell}[2][c]{%
+  \begin{tabular}[#1]{@{}c@{}}#2\end{tabular}}
+
+\title{\includegraphics[scale=0.3]{logo.png} \\ \textbf{A Performance Evaluation of Programming Languages Operating in Single Core Instructions}}
+\author{Parallel and Distributed Computing \\ Bachelors in Informatics and Computer Engineering \\ \\ 3L.EIC01\_G5   \\ Joel Fernandes up201904977@up.pt \\ Mário Travassos up201905871@up.pt \\ Tiago Rodrigues up201907021@up.pt }
+
+\graphicspath{{./images/}}
+
+\begin{document}
+    \maketitle
+
+    \newpage
+
+    \section*{Introduction}
+
+    \paragraph{}This project intends to show and evaluate the effect of processor performance when accessing large amounts of data, performing the same instructions multiple times. In this study, the product of two matrices was used as the benchmark.
+
+    \paragraph{}Also, a comparison of how different programming languages interact with memory and impact the processor speed is shown. \textbf{It is important to highlight that these tests were performed on a single core, so no parallelism optimizations were made}.
+
+    \paragraph{}Finally, performance measures were made using the \textbf{Performance API (PAPI)}, which will be analyzed and discussed in further detail.
+
+    \section*{Problem Description}
+
+    \paragraph{}The problem used to evaluate the performance was the \textbf{matrix multiplication}. It was chosen because the amount of instructions does not impact performance tremendously, with the greatest bottleneck being memory access.
+
+    \paragraph{}That way, we can measure more truthfully how much time does the processor spend accessing memory, and the impact that cache hits and misses have on a program.
+
+    \paragraph{}The first improvement was to multiply by line instead of the usual matrix multiplication. Then, a further improvement made was multiplying by block, which is shown to reduce running times marginally since we are not yet using parallelization.
+
+    \newpage
+
+    \section*{Algorithm Analysis}
+
+    \subsection*{Normal Multiplication}
+
+    \paragraph{}The first algorithm developed calculates the matrix product the way that students are traditionally taught in their Algebra class. In this algorithm, values are multiplied sequentially, with the first element being the dot product between the first row from the first matrix and the first column from the second matrix, and so on.
+
+    \paragraph{}The following pseudocode details how the algorithm works. Here, $a$ is the first Matrix and $b$ the second one, and they produce the result on matrix $c$:
+
+    \begin{algorithm}
+      \caption{Regular Multiplication}\label{euclid}
+      \begin{algorithmic}[1]
+        \Procedure{Regular Multiplication}{a, b}
+        \For{$i = 0\ to\ length(a)$}
+        \For{$j = 0\ to\ length(b)$}
+        \State $temp \leftarrow 0$
+        \For{$k = 0\ to\ length(a)$}
+        \State $temp \leftarrow temp + a_{i, k} + b_{k, j}$
+        \EndFor
+        \State $c_{i, j} \leftarrow temp$
+        \EndFor
+        \EndFor
+        \EndProcedure
+      \end{algorithmic}
+    \end{algorithm}
+
+    \paragraph{}Although it is simple to implement and easy to understand as it follows the mathematical definitions, it is not very performant as matrix sizes increase drastically.
+
+    \subsection*{Line Multiplication}
+
+    \paragraph{}In this version of the algorithm, all that is done is a change in the order of operations. Instead of performing the calculations based on the result matrix, we perform them based on the rows of the second matrix. This means that first, all values of the first row of the second matrix are ``used'', and only then does it change to the second one, and so on.
+
+    \newpage
+
+    \paragraph{}To further clarify this, the following pseudocode shows how it works. Once again, $a$ represents the first matrix, $b$ the second one, and the output will be stored in $c$:
+
+    \begin{algorithm}
+      \caption{Line Multiplication}\label{euclid}
+      \begin{algorithmic}[1]
+        \Procedure{Line Multiplication}{a, b}
+        \For{$i = 0\ to\ length(a)$}
+        \For{$j = 0\ to\ length(b)$}
+        \For{$k = 0\ to\ length(a)$}
+        \State $c_{i, k} \leftarrow c_{i, k} + a_{i, j} + b_{j, k}$
+        \EndFor
+        \EndFor
+        \EndFor
+        \EndProcedure
+      \end{algorithmic}
+    \end{algorithm}
+
+    \subsection*{Block Multiplication}
+
+    \paragraph{}The final algorithm used was the block multiplication method. This takes advantage of the fact that a matrix can be partitioned into sections, called blocks, that can be multiplied together, yielding the same result as the regular multiplication. This algorithm used the previous line multiplication optimization on each of these small matrices.
+
+    \paragraph{}The following pseudocode can help with understanding how such calculations are done. Again, $a$ is the first matrix, $b$ the second one, and $c$ will store the result of executing the instructions. Also, this time, the size of the blocks is included, as it can affect speed of computations:
+
+    \begin{algorithm}
+      \caption{Block Multiplication}\label{euclid}
+      \begin{algorithmic}[1]
+        \Procedure{FindSmallest}{index, blockSize, size}
+        \If{$index + blockSize > size$}
+        \State \Return $size$
+        \Else
+        \State \Return $index + blockSize$
+        \EndIf
+        \EndProcedure
+        \Procedure{Block Multiplication}{a, b, blockSize}
+        \For{$jj = 0\ to\ length(a)\ in\ blockSize\ increments$}
+        \For{$kk = 0\ to\ length(a)\ in\ blockSize\ increments$}
+        \For{$i = 0\ to\ length(a)$}
+        \For{$j = jj\ to\ FindSmallest(jj, bkSize, length(a))$}
+        \For{$k = kk\ to\ FindSmallest(kk, bkSize, length(a))$}
+        \State $c_{i, k} \leftarrow c_{i, k} + a_{i, j} + b_{k, k}$
+        \EndFor
+        \EndFor
+        \EndFor
+        \EndFor
+        \EndFor
+        \EndProcedure
+      \end{algorithmic}
+    \end{algorithm}
+    
+    \paragraph{}Even though the number of loops increased, this proved to be the fastest algorithm, as will be later analyzed in the next section.
+
+    \section*{Performance Evaluation}
+
+    \subsection*{Metrics Used}
+
+    \paragraph{}To evaluate the performance of each algorithm, 3 metrics were used to determine both speed and memory performance. To measure speed, the running time of the calculations was measured, in seconds. To measure memory access, the Performance API (PAPI) was used, to measure cache misses, both to the L1 and the L2 cache.
+
+    \subsection*{Results Analysis}
+
+    \paragraph{}The following tables present the data collected in regards to the performance metrics motioned above:
+    
+    \begin{center}
+        \begin{tabular}{||c | c c c c||} 
+         \hline
+         \specialcell{Matrix\\Size} & \specialcell{Execution\\Time in\\C/C++ (s)} & \specialcell{Execution\\Time in\\Java (s)} & \specialcell{L1 Cache\\Misses} & \specialcell{L2 Cache\\Misses} \\ [0.5ex] 
+         \hline\hline
+         600 & 0.195 & 0.219 & 244653501 & 39881374 \\ 
+         \hline
+         1000 & 1.178 & 1.572 & 1218513480 & 279800654 \\
+         \hline
+         1400 & 3.370 & 4.028 & 3486142982 & 1446737049 \\
+         \hline
+         1800 & 17.441 & 19.446 & 9047593753 & 6474783745 \\
+         \hline
+         2200 & 38.367 & 40.977 & 17623177754 & 21085484639 \\
+         \hline
+         2600 & 68.470 & 70.859 & 30872105198 & 47541682771 \\
+         \hline
+         3000 & 115.008 & 119.743 & 50290435489 & 92834582308 \\
+         \hline
+        \end{tabular}
+    \end{center}
+    \begin{center}
+        \textbf{Table 1:} Performance for Normal Matrix Multiplication
+    \end{center}
+    
+    As we can see C/C++ will always run faster than Java (this will persist throughout every algorithm). Additionally, the number of both L1 and L2 cache misses is very high hence the slow speed at which this algorithm runs.
+    
+    \begin{center}
+        \begin{tabular}{||c | c c c c||} 
+         \hline
+         \specialcell{Matrix\\Size} & \specialcell{Execution\\Time in\\C/C++ (s)} & \specialcell{Execution\\Time in\\Java (s)} & \specialcell{L1 Cache\\Misses} & \specialcell{L2 Cache\\Misses} \\ [0.5ex] 
+         \hline\hline
+         600 & 0.102 & 0.152 & 27251081 & 56256654 \\ 
+         \hline
+         1000 & 0.447 & 0.614 & 126128908 & 258714755 \\
+         \hline
+         1400 & 1.476 & 2.734 & 347198530 & 712556517 \\
+         \hline
+         1800 & 3.209 & 5.901 & 745250056 & 1455316787 \\
+         \hline
+         2200 & 5.973 & 10.802 & 2074934678 & 2603551197 \\
+         \hline
+         2600 & 10.039 & 17.933 & 4412661110 & 4245146040 \\
+         \hline
+         3000 & 15.440 & 27.588 & 6780116699 & 6431098530 \\
+         \hline
+         4096 & 40.751 & - & 17631509334 & 16662860353 \\
+         \hline
+         6144 & 138.618 & - & 59479942150 & 56122394974 \\
+         \hline
+         8192 & 339.714 & - & 140735675064 & 133737381570 \\
+         \hline
+         10240 & 648.234 & - & 274931653237 & 263241362704 \\
+         \hline
+        \end{tabular}
+    \end{center}
+    \begin{center}
+        \textbf{Table 2:} Performance for Line Matrix Multiplication
+    \end{center}
+    
+    This algorithm runs much faster than the last one dispute the same temporal complexity ($O(n^3)$) this is due to the change in order of calculation of the result matrix. This causes the program to load less memory each time it multiplies the data which will be saved save in cache and loaded later. This, in response, will cause less cache misses and the program does not need to load data from memory that often.
+    \vspace{4mm}
+    
+    \begin{center}
+        \begin{tabular}{||c c | c c c||} 
+         \hline
+         \specialcell{Matrix\\Size} & \specialcell{Block\\Size} & \specialcell{Execution\\Time in C/C++ (2)} & \specialcell{L1 Cache\\Misses} & \specialcell{L2 Cache\\Misses} \\ [0.5ex] 
+         \hline\hline
+          & 128 & 37.435 & 9969660010 & 33923604657 \\ 
+         4096 & 256 & 33.541 & 9134545276 & 22396558533 \\
+          & 512 & 39.257 & 8759951347 & 19058265882 \\
+         \hline
+          & 128 & 121.318 & 33389228826 & 114150534019 \\
+         6144 & 256 & 113.862 & 30804770621 & 77463393766 \\
+          & 512 & 116.091 & 29629739330 & 65190519908 \\
+         \hline
+          & 128 & 335.681 & 78645306193 & 252299480469 \\
+         8192 & 256 & 329.338 & 72474408666 & 162485781627 \\
+          & 512 & 333.740 & 70361616713 & 144484233529 \\
+         \hline
+          & 128 & 571.861 & 153447617238 & 499714786829 \\
+         10240 & 256 & 528.412 & 142455484130 & 350574408778 \\
+          & 512 & 525.005 & 137014601382 & 298485724101 \\
+         \hline
+        \end{tabular}
+    \end{center}
+    \begin{center}
+        \textbf{Table 3:} Performance for Block Matrix Multiplication
+    \end{center}
+    
+    This algorithm runs marginally faster than the last since here we are just doing the same calculation on multiple smaller matrices. Consequently, this lowers the number of cache misses since we divide the big matrices into smaller ones so we load less memory on each matrix multiplication. This performance can be greatly enhanced thought parallelization.
+    
+    \section*{Conclusion}
+
+    \paragraph{}The way and order in which we perform computations can have a great impact on performance. The use of the proper algorithms, even in single core programs, can have a significant impact on processing time as well. Even more, the programming language used and the way it handles memory can also affect the time, as it has been shown in this report.
+
+    \paragraph{}The result turns out to be what was expected, with a language designed for speed like C/C++ beating out Java in every metric.
+
+    \paragraph{}With this in mind, the report is satisfactory, as it concludes what was thought to be true beforehand, and it contributed to our knowledge of how machine instructions, order of operations, and memory access can have a significant impact on the speed of programs.
+
+\end{document}
