@@ -1,4 +1,4 @@
-# CPD Projects
+# CPD Projects - Parallel and Distributed Computing
 
 CPD Projects of group T01G05.
 
